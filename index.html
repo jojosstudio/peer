@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Morsecode QR Kommunikator</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -54,6 +55,28 @@
             color: #333;
             word-break: break-all;
         }
+        #scannerContainer {
+            position: relative;
+            margin: 20px 0;
+        }
+        #video {
+            width: 100%;
+            border-radius: 5px;
+            display: none;
+        }
+        #canvas {
+            display: none;
+        }
+        #scanningOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 3px solid #4CAF50;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -70,7 +93,15 @@
         
         <div class="section">
             <h2>Nachricht empfangen</h2>
-            <button id="scanBtn">QR-Code scannen (mit Handykamera)</button>
+            <button id="startScanBtn">QR-Code scannen starten</button>
+            <button id="stopScanBtn" style="display:none; background:#f44336;">Scan stoppen</button>
+            
+            <div id="scannerContainer" style="display:none;">
+                <video id="video" playsinline></video>
+                <canvas id="canvas"></canvas>
+                <div id="scanningOverlay"></div>
+            </div>
+            
             <p>oder Morsecode manuell eingeben:</p>
             <textarea id="morseInput" placeholder="z.B. .... .- .-.. .-.. ---" rows="3"></textarea>
             <button id="decodeBtn">Zu Text dekodieren</button>
@@ -123,7 +154,7 @@
             
             // QR-Code generieren
             document.getElementById('qrcode').innerHTML = "";
-            new QRCode(document.getElementById('qrcode"), {
+            new QRCode(document.getElementById("qrcode"), {
                 text: morse,
                 width: 200,
                 height: 200,
@@ -142,11 +173,65 @@
             document.getElementById('scannedResult').textContent = text;
         });
 
-        // QR-Code scannen Button (nur visuell - echte Implementierung benötigt eine Kamera-API)
-        document.getElementById('scanBtn').addEventListener('click', function() {
-            alert("Öffnen Sie die Kamera-App Ihres Handys und scannen Sie den QR-Code.\n" +
-                  "Alternativ können Sie den Morsecode manuell oben eingeben.");
-        });
+        // QR-Code Scanner
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let scanning = false;
+
+        document.getElementById('startScanBtn').addEventListener('click', startScanning);
+        document.getElementById('stopScanBtn').addEventListener('click', stopScanning);
+
+        function startScanning() {
+            document.getElementById('scannerContainer').style.display = 'block';
+            document.getElementById('startScanBtn').style.display = 'none';
+            document.getElementById('stopScanBtn').style.display = 'inline-block';
+            
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.play();
+                    scanning = true;
+                    scanQRCode();
+                })
+                .catch(function(err) {
+                    alert("Kamera-Zugriff fehlgeschlagen: " + err);
+                    stopScanning();
+                });
+        }
+
+        function stopScanning() {
+            scanning = false;
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('scannerContainer').style.display = 'none';
+            document.getElementById('startScanBtn').style.display = 'inline-block';
+            document.getElementById('stopScanBtn').style.display = 'none';
+        }
+
+        function scanQRCode() {
+            if (!scanning) return;
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: 'dontInvert',
+                });
+                
+                if (code) {
+                    document.getElementById('scannedResult').textContent = morseToText(code.data);
+                    document.getElementById('morseInput').value = code.data;
+                    stopScanning();
+                }
+            }
+            
+            requestAnimationFrame(scanQRCode);
+        }
     </script>
 </body>
 </html>
