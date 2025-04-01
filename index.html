@@ -73,10 +73,11 @@
         
         <label for="username">Benutzername:</label>
         <input type="text" id="username" placeholder="Gib deinen Benutzernamen ein" />
+        <button id="connectButton">Verbinden</button>
 
-        <textarea id="inputMessage" placeholder="Gib eine Nachricht ein"></textarea>
+        <textarea id="inputMessage" placeholder="Gib eine Nachricht ein" disabled></textarea>
         
-        <button onclick="sendMessage(document.getElementById('inputMessage').value)">Nachricht Senden</button>
+        <button id="sendButton" onclick="sendMessage()" disabled>Nachricht Senden</button>
         
         <p>Verbindung zu: <span id="connectedUser">Niemand</span></p>
 
@@ -116,6 +117,7 @@
 
         const participants = [];
 
+        // Funktion, um sich zu verbinden
         function createConnection() {
             const username = document.getElementById('username').value.trim();
             if (username === "") {
@@ -168,20 +170,28 @@
                 .then(() => remotePeerConnection.createAnswer())
                 .then(answer => remotePeerConnection.setLocalDescription(answer))
                 .then(() => localPeerConnection.setRemoteDescription(remotePeerConnection.localDescription));
+
+            // Nach der Verbindung den Button und das Textfeld aktivieren
+            document.getElementById('inputMessage').disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            document.getElementById('connectButton').disabled = true;
         }
 
-        function sendMessage(message) {
+        // Nachricht senden
+        function sendMessage() {
             const username = document.getElementById('username').value.trim();
             if (username === "") {
                 alert("Bitte gib einen Benutzernamen ein.");
                 return;
             }
 
+            const message = document.getElementById('inputMessage').value;
             const morseMessage = textToMorse(message);
             const finalMessage = `${username}: ${morseMessage}`;
             dataChannel.send(finalMessage);
         }
 
+        // Teilnehmer-Liste aktualisieren
         function updateParticipantsList() {
             const participantsList = document.getElementById('participantsList');
             participantsList.innerHTML = ''; // Liste zurücksetzen
@@ -194,9 +204,8 @@
             });
         }
 
-        // Automatische Verbindung beim Laden der Seite
-        window.addEventListener('load', createConnection);
-
+        // Event-Listener für den "Verbinden"-Button
+        document.getElementById('connectButton').addEventListener('click', createConnection);
     </script>
 </body>
 </html>
