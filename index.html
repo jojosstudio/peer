@@ -3,209 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Morsecode Peer-to-Peer Kommunikation</title>
+    <title>Morsecode QR Kommunikator</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f4f4f4;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
         }
         .container {
-            background: #fff;
+            background: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            width: 400px;
-            text-align: center;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        input, button, textarea {
+        textarea, button {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
             border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        textarea {
-            height: 100px;
+            border: 1px solid #ddd;
         }
         button {
-            cursor: pointer;
             background-color: #4CAF50;
             color: white;
             border: none;
+            cursor: pointer;
+            font-size: 16px;
         }
         button:hover {
             background-color: #45a049;
         }
-        .participants {
-            margin-top: 20px;
-            text-align: left;
+        #qrcode {
+            margin: 20px auto;
+            padding: 10px;
+            background: white;
+            display: inline-block;
         }
-        .participant {
-            background-color: #e0e0e0;
-            padding: 8px;
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
             border-radius: 5px;
-            margin-bottom: 5px;
+            background: #f9f9f9;
         }
-        #connectedUser {
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        #receivedMessage {
-            color: green;
-            margin-top: 20px;
+        #scannedResult {
+            font-family: monospace;
             font-size: 18px;
+            color: #333;
+            word-break: break-all;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Morsecode Peer-to-Peer Kommunikation</h1>
+        <h1>Morsecode QR Kommunikator</h1>
         
-        <label for="username">Benutzername:</label>
-        <input type="text" id="username" placeholder="Gib deinen Benutzernamen ein" />
-        <button id="connectButton">Verbinden</button>
-
-        <textarea id="inputMessage" placeholder="Gib eine Nachricht ein" disabled></textarea>
+        <div class="section">
+            <h2>Nachricht senden</h2>
+            <textarea id="inputText" placeholder="Gib deine Nachricht ein..." rows="3"></textarea>
+            <button id="generateBtn">Zu Morsecode & QR-Code konvertieren</button>
+            <div id="morseOutput" style="margin: 10px 0;"></div>
+            <div id="qrcode"></div>
+        </div>
         
-        <button id="sendButton" onclick="sendMessage()" disabled>Nachricht Senden</button>
-        
-        <p>Verbindung zu: <span id="connectedUser">Niemand</span></p>
-
-        <p>Empfangene Nachricht: <span id="receivedMessage"></span></p>
-
-        <div class="participants">
-            <h3>Teilnehmer:</h3>
-            <div id="participantsList"></div>
+        <div class="section">
+            <h2>Nachricht empfangen</h2>
+            <button id="scanBtn">QR-Code scannen (mit Handykamera)</button>
+            <p>oder Morsecode manuell eingeben:</p>
+            <textarea id="morseInput" placeholder="z.B. .... .- .-.. .-.. ---" rows="3"></textarea>
+            <button id="decodeBtn">Zu Text dekodieren</button>
+            <div id="textOutput" style="margin-top: 15px;">
+                <strong>Empfangene Nachricht:</strong>
+                <div id="scannedResult">-</div>
+            </div>
         </div>
     </div>
 
     <script>
+        // Morsecode-Mapping
         const morseCode = {
             'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
             'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
-            'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
-            '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/'
+            'Y': '-.--', 'Z': '--..', 
+            '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
+            '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', 
+            ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', "'": '.----.', '!': '-.-.--',
+            '/': '-..-.', '(': '-.--.', ')': '-.--.-', '&': '.-...', ':': '---...', ';': '-.-.-.',
+            '=': '-...-', '+': '.-.-.', '-': '-....-', '_': '..--.-', '"': '.-..-.', '$': '...-..-',
+            '@': '.--.-.', 'Ä': '.-.-', 'Ö': '---.', 'Ü': '..--', 'ß': '...--..'
         };
 
+        // Umgekehrtes Mapping für Dekodierung
+        const reverseMorse = {};
+        for (const key in morseCode) {
+            reverseMorse[morseCode[key]] = key;
+        }
+
+        // Text zu Morsecode
         function textToMorse(text) {
             return text.toUpperCase().split('').map(char => morseCode[char] || '').join(' ');
         }
 
+        // Morsecode zu Text
         function morseToText(morse) {
-            const reverseMorseCode = Object.fromEntries(Object.entries(morseCode).map(([key, value]) => [value, key]));
-            return morse.split(' ').map(code => reverseMorseCode[code] || '').join('');
+            return morse.split(' ').map(code => reverseMorse[code] || '').join('');
         }
 
-        let localPeerConnection;
-        let remotePeerConnection;
-        let dataChannel;
-
-        const serverConfig = {
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // STUN Server
-        };
-
-        const participants = [];
-
-        // Funktion, um sich zu verbinden
-        function createConnection() {
-            const username = document.getElementById('username').value.trim();
-            if (username === "") {
-                alert("Bitte gib einen Benutzernamen ein.");
-                return;
-            }
-
-            const deviceName = navigator.platform; // Gerätemodell oder Name
-            participants.push({ username, deviceName });
-
-            // Anzeige der Teilnehmer
-            updateParticipantsList();
-
-            localPeerConnection = new RTCPeerConnection(serverConfig);
-            dataChannel = localPeerConnection.createDataChannel('morseDataChannel');
-
-            dataChannel.onopen = () => console.log('Data channel opened');
-            dataChannel.onmessage = (event) => {
-                const decodedMessage = morseToText(event.data);
-                document.getElementById('receivedMessage').textContent = decodedMessage;
-            };
-
-            localPeerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    remotePeerConnection.addIceCandidate(event.candidate);
-                }
-            };
-
-            remotePeerConnection = new RTCPeerConnection(serverConfig);
-            remotePeerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    localPeerConnection.addIceCandidate(event.candidate);
-                }
-            };
-
-            remotePeerConnection.ondatachannel = event => {
-                const receiveChannel = event.channel;
-                receiveChannel.onmessage = (event) => {
-                    const decodedMessage = morseToText(event.data);
-                    document.getElementById('receivedMessage').textContent = decodedMessage;
-                };
-            };
-
-            // Setzt den Namen des verbundenen Benutzers
-            document.getElementById('connectedUser').textContent = username;
-
-            localPeerConnection.createOffer()
-                .then(offer => localPeerConnection.setLocalDescription(offer))
-                .then(() => remotePeerConnection.setRemoteDescription(localPeerConnection.localDescription))
-                .then(() => remotePeerConnection.createAnswer())
-                .then(answer => remotePeerConnection.setLocalDescription(answer))
-                .then(() => localPeerConnection.setRemoteDescription(remotePeerConnection.localDescription));
-
-            // Nach der Verbindung den Button und das Textfeld aktivieren
-            document.getElementById('inputMessage').disabled = false;
-            document.getElementById('sendButton').disabled = false;
-            document.getElementById('connectButton').disabled = true;
-        }
-
-        // Nachricht senden
-        function sendMessage() {
-            const username = document.getElementById('username').value.trim();
-            if (username === "") {
-                alert("Bitte gib einen Benutzernamen ein.");
-                return;
-            }
-
-            const message = document.getElementById('inputMessage').value;
-            const morseMessage = textToMorse(message);
-            const finalMessage = `${username}: ${morseMessage}`;
-            dataChannel.send(finalMessage);
-        }
-
-        // Teilnehmer-Liste aktualisieren
-        function updateParticipantsList() {
-            const participantsList = document.getElementById('participantsList');
-            participantsList.innerHTML = ''; // Liste zurücksetzen
-
-            participants.forEach(participant => {
-                const participantElement = document.createElement('div');
-                participantElement.classList.add('participant');
-                participantElement.innerHTML = `${participant.username} (${participant.deviceName})`;
-                participantsList.appendChild(participantElement);
+        // QR-Code generieren
+        document.getElementById('generateBtn').addEventListener('click', function() {
+            const text = document.getElementById('inputText').value;
+            if (!text) return;
+            
+            const morse = textToMorse(text);
+            document.getElementById('morseOutput').innerHTML = 
+                `<strong>Morsecode:</strong> ${morse}`;
+            
+            // QR-Code generieren
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById('qrcode"), {
+                text: morse,
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
             });
-        }
+        });
 
-        // Event-Listener für den "Verbinden"-Button
-        document.getElementById('connectButton').addEventListener('click', createConnection);
+        // Morsecode dekodieren
+        document.getElementById('decodeBtn').addEventListener('click', function() {
+            const morse = document.getElementById('morseInput').value;
+            if (!morse) return;
+            
+            const text = morseToText(morse);
+            document.getElementById('scannedResult').textContent = text;
+        });
+
+        // QR-Code scannen Button (nur visuell - echte Implementierung benötigt eine Kamera-API)
+        document.getElementById('scanBtn').addEventListener('click', function() {
+            alert("Öffnen Sie die Kamera-App Ihres Handys und scannen Sie den QR-Code.\n" +
+                  "Alternativ können Sie den Morsecode manuell oben eingeben.");
+        });
     </script>
 </body>
 </html>
